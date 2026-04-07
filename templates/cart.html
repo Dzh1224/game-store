@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-3">{{ t('cart_title') }}</h1>
+{% if current_user.cart_games %}
+    <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+        <span class="badge text-bg-primary">{{ t('added_games') }}: {{ items_count }}</span>
+        <span class="badge text-bg-info">{{ t('total_price') }}: {{ '%.2f'|format(total) }} ₽</span>
+        <span class="badge text-bg-secondary" id="selectedSummary">{{ t('selected') }}: 0 игр на 0.00 ₽</span>
+    </div>
+
+    <form method="post" action="{{ url_for('checkout_selected') }}">
+    <div class="card bg-dark-subtle border-secondary">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">
+                            <input class="form-check-input" type="checkbox" id="selectAll">
+                        </th>
+                        <th>{{ t('game') }}</th>
+                        <th>{{ t('price') }}</th>
+                        <th class="text-end">{{ t('action') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for game in current_user.cart_games %}
+                    <tr>
+                        <td>
+                            <input
+                                class="form-check-input game-checkbox"
+                                type="checkbox"
+                                name="selected_games"
+                                value="{{ game.id }}"
+                                data-price="{{ game.price }}"
+                            >
+                        </td>
+                        <td><a href="{{ url_for('game_detail', game_id=game.id) }}" class="link-light">{{ game.name }}</a></td>
+                        <td>{{ '%.2f'|format(game.price) }} ₽</td>
+                        <td class="text-end">
+                            <button
+                                class="btn btn-sm btn-outline-danger"
+                                formaction="{{ url_for('remove_from_cart', game_id=game.id) }}"
+                                formmethod="post"
+                            >
+                                {{ t('remove') }}
+                            </button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+        <h2 class="h5 m-0">{{ t('total_price') }}: {{ '%.2f'|format(total) }} ₽</h2>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary">{{ t('buy_selected') }}</button>
+            <button class="btn btn-success" formaction="{{ url_for('checkout') }}" formmethod="post">{{ t('buy_all') }}</button>
+        </div>
+    </div>
+    </form>
+
+    <script>
+        // Подсчет выбранных игр и их общей стоимости прямо в корзине
+        const selectAll = document.getElementById("selectAll");
+        const checkboxes = Array.from(document.querySelectorAll(".game-checkbox"));
+        const selectedSummary = document.getElementById("selectedSummary");
+
+        function updateSelectedSummary() {
+            const selected = checkboxes.filter((checkbox) => checkbox.checked);
+            const selectedCount = selected.length;
+            const selectedTotal = selected.reduce((sum, checkbox) => sum + Number(checkbox.dataset.price), 0);
+            selectedSummary.textContent = `{{ t('selected') }}: ${selectedCount} игр на ${selectedTotal.toFixed(2)} ₽`;
+            if (selectAll) {
+                selectAll.checked = checkboxes.length > 0 && selectedCount === checkboxes.length;
+            }
+        }
+
+        if (selectAll) {
+            selectAll.addEventListener("change", () => {
+                checkboxes.forEach((checkbox) => {
+                    checkbox.checked = selectAll.checked;
+                });
+                updateSelectedSummary();
+            });
+        }
+
+        checkboxes.forEach((checkbox) => {
+            checkbox.addEventListener("change", updateSelectedSummary);
+        });
+
+        updateSelectedSummary();
+    </script>
+{% else %}
+    <p class="text-secondary">{{ t('cart_empty') }}</p>
+{% endif %}
+{% endblock %}

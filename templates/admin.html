@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 m-0">Админ-панель</h1>
+    <a class="btn btn-primary" href="{{ url_for('admin_add_game') }}">Добавить игру</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card bg-dark-subtle border-secondary">
+            <div class="card-header">Игры ({{ games|length }})</div>
+            <div class="table-responsive">
+                <table class="table table-dark table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название</th>
+                            <th>Цена</th>
+                            <th class="text-end">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for game in games %}
+                        <tr>
+                            <td>{{ game.id }}</td>
+                            <td>{{ game.name }}</td>
+                            <td>{{ '%.2f'|format(game.price) }} ₽</td>
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-outline-warning" href="{{ url_for('admin_edit_game', game_id=game.id) }}">Изменить</a>
+                                <form method="post" action="{{ url_for('admin_delete_game', game_id=game.id) }}" class="d-inline">
+                                    <button class="btn btn-sm btn-outline-danger">Удалить</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card bg-dark-subtle border-secondary">
+            <div class="card-header">Пользователи ({{ users|length }})</div>
+            <ul class="list-group list-group-flush">
+                {% for user in users %}
+                    <li class="list-group-item bg-transparent text-light">
+                        <div class="d-flex justify-content-between">
+                            <span>{{ user.username }}{% if user.is_admin %} (admin){% endif %}</span>
+                            <span>{{ '%.2f'|format(user.balance) }} ₽</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <small class="text-secondary">{{ user.email }}</small>
+                            <a class="btn btn-sm btn-outline-light" href="{{ url_for('admin_user_profile', user_id=user.id) }}">Профиль</a>
+                        </div>
+                        <form method="post" action="{{ url_for('admin_topup_user', user_id=user.id) }}" class="d-flex gap-2">
+                            <input
+                                type="number"
+                                min="1"
+                                step="0.01"
+                                name="amount"
+                                class="form-control form-control-sm"
+                                placeholder="Пополнить на сумму (₽)"
+                                required
+                            >
+                            <button class="btn btn-sm btn-success">Пополнить</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

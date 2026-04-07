@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <h1 class="h4 mb-3">Регистрация</h1>
+        <form method="post" class="card p-3 bg-dark-subtle border-secondary">
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <input type="text" name="username" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <input type="email" name="email" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Пароль (минимум 6 символов)</label>
+                <input type="password" name="password" class="form-control" required>
+            </div>
+            <button class="btn btn-primary">Создать аккаунт</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

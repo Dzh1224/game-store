@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="{{ current_lang }}" data-bs-theme="{{ current_theme }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ t('store_name') }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-light border-bottom border-primary-subtle colorful-navbar">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">{{ t('store_name') }}</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navMenu">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">{{ t('catalog') }}</a></li>
+                {% if current_user.is_authenticated %}
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('cart') }}">{{ t('cart') }} ({{ current_user.cart_games|length }})</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('profile') }}">{{ t('profile') }}</a></li>
+                    {% if current_user.is_admin %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('admin') }}">{{ t('admin_panel') }}</a></li>
+                    {% endif %}
+                {% endif %}
+            </ul>
+            <div class="d-flex gap-2">
+                <div class="dropdown">
+                    <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        {{ t('theme') }}: {{ t(current_theme) }}
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('set_theme', theme='light') }}">{{ t('light') }}</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('set_theme', theme='dark') }}">{{ t('dark') }}</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        {{ t('language') }}: {{ t('russian') if current_lang == 'ru' else t('english') }}
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('set_language', lang='ru') }}">{{ t('russian') }}</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('set_language', lang='en') }}">{{ t('english') }}</a></li>
+                    </ul>
+                </div>
+                {% if current_user.is_authenticated %}
+                    <span class="badge text-bg-success align-self-center">{{ t('balance') }}: {{ '%.2f'|format(current_user.balance) }} ₽</span>
+                    <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">{{ t('logout') }}</a>
+                {% else %}
+                    <a class="btn btn-outline-light btn-sm" href="{{ url_for('login') }}">{{ t('login') }}</a>
+                    <a class="btn btn-primary btn-sm" href="{{ url_for('register') }}">{{ t('register') }}</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</nav>
+
+<main class="container py-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
