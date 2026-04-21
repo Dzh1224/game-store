@@ -3,7 +3,7 @@ pipeline {
     
     parameters {
         choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'prod'], description: 'o')
-        booleanParam(name: 'RUN_MIGRATIONS', defaultValue: false, description: 'b')
+        booleanParam(name: 'RUN_MIGRATIONS', defaultValue: false, description: 'd')
     }
     
     environment {
@@ -17,7 +17,7 @@ pipeline {
             steps {
                 checkout scm
                 dir('backend') {
-                    echo "Backend code received"
+                    echo "code received"
                 }
             }
         }
@@ -95,10 +95,10 @@ pipeline {
     
     post {
         success {
-            echo "t"
+            echo "Pipeline t!"
         }
         failure {
-            echo "f"
+            echo "Pipeline f!"
         }
     }
 }
