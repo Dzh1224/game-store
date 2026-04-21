@@ -1,0 +1,97 @@
+pipeline {
+    agent any
+    
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'prod'], description: 'Куда деплоим?')
+    }
+    
+    environment {
+        DOCKER_REGISTRY = 'docker.io/yourteam'
+        IMAGE_NAME = 'game-store-frontend'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                dir('frontend') {
+                    echo "code received"
+                }
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                dir('frontend') {
+                    sh 'npm ci'
+                }
+            }
+        }
+        
+        stage('Lint & Test') {
+            steps {
+                dir('frontend') {
+                    sh 'npm run lint'
+                    sh 'npm test -- --watchAll=false'
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                dir('frontend') {
+                    sh 'npm run build'
+                }
+            }
+        }
+        
+        stage('Docker Build') {
+            steps {
+                dir('frontend') {
+                    sh """
+                        docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} \
+                                     -t ${IMAGE_NAME}:latest \
+                                     -f Dockerfile .
+                    """
+                }
+            }
+        }
+        
+        stage('Docker Push') {
+            when {
+                expression { params.ENVIRONMENT == 'staging' || params.ENVIRONMENT == 'prod' }
+            }
+            steps {
+                sh """
+                    docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${DOCKER_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}
+                    docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}
+                """
+            }
+        }
+        
+        stage('Deploy') {
+            when {
+                expression { params.ENVIRONMENT == 'staging' || params.ENVIRONMENT == 'prod' }
+            }
+            steps {
+                sh """
+                    ssh user@server "
+                        docker pull ${DOCKER_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER} &&
+                        docker stop frontend || true &&
+                        docker rm frontend || true &&
+                        docker run -d --name frontend -p 80:80 ${DOCKER_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}
+                    "
+                """
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "Frontend pipeline t!"
+        }
+        failure {
+            echo "Frontend pipeline f!"
+        }
+    }
+}
