@@ -2,11 +2,23 @@
 {% block content %}
 <div class="row g-4">
     <div class="col-md-5">
-        <img src="{{ game.image_url }}" class="img-fluid rounded border border-secondary" alt="{{ game.name }}">
+        <img src="{{ game.image_url }}" class="img-fluid rounded border border-secondary" alt="{{ base_name }}">
     </div>
     <div class="col-md-7">
-        <h1 class="h3">{{ game.name }}</h1>
+        <h1 class="h3">{{ base_name }}</h1>
         <p class="text-secondary">{{ game.category }} | {{ game.developer }} | {{ game.release_year }}</p>
+        {% if editions|length > 1 %}
+            <form method="get" action="{{ url_for('game_detail', game_id=game.id) }}" class="mb-3">
+                <label for="edition_id" class="form-label">Версия игры</label>
+                <select id="edition_id" name="edition_id" class="form-select" onchange="this.form.submit()">
+                    {% for edition in editions %}
+                        <option value="{{ edition.id }}" {% if edition.id == game.id %}selected{% endif %}>
+                            {{ edition.label }} — {{ '%.2f'|format(edition.price) }} ₽
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        {% endif %}
         <p>{{ game.description }}</p>
         <p class="fs-4 fw-bold">{{ '%.2f'|format(game.price) }} ₽</p>
 

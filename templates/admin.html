@@ -8,13 +8,14 @@
 <div class="row g-3">
     <div class="col-lg-8">
         <div class="card bg-dark-subtle border-secondary">
-            <div class="card-header">Игры ({{ games|length }})</div>
+            <div class="card-header">Главные карточки игр ({{ games|length }})</div>
             <div class="table-responsive">
                 <table class="table table-dark table-striped mb-0">
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>ID карточки</th>
                             <th>Название</th>
+                            <th>Изданий</th>
                             <th>Цена</th>
                             <th class="text-end">Действия</th>
                         </tr>
@@ -22,12 +23,19 @@
                     <tbody>
                     {% for game in games %}
                         <tr>
-                            <td>{{ game.id }}</td>
-                            <td>{{ game.name }}</td>
-                            <td>{{ '%.2f'|format(game.price) }} ₽</td>
+                            <td>{{ game.card_id }}</td>
+                            <td>{{ game.base_name }}</td>
+                            <td>{{ game.versions_count }}</td>
+                            <td>
+                                {% if game.min_price == game.max_price %}
+                                    {{ '%.2f'|format(game.min_price) }} ₽
+                                {% else %}
+                                    {{ '%.2f'|format(game.min_price) }} - {{ '%.2f'|format(game.max_price) }} ₽
+                                {% endif %}
+                            </td>
                             <td class="text-end">
-                                <a class="btn btn-sm btn-outline-warning" href="{{ url_for('admin_edit_game', game_id=game.id) }}">Изменить</a>
-                                <form method="post" action="{{ url_for('admin_delete_game', game_id=game.id) }}" class="d-inline">
+                                <a class="btn btn-sm btn-outline-warning" href="{{ url_for('admin_edit_game', game_id=game.game_id) }}">Изменить</a>
+                                <form method="post" action="{{ url_for('admin_delete_game', game_id=game.game_id) }}" class="d-inline" onsubmit="return confirm('Удалить эту игру? Действие необратимо.')">
                                     <button class="btn btn-sm btn-outline-danger">Удалить</button>
                                 </form>
                             </td>
@@ -51,7 +59,14 @@
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <small class="text-secondary">{{ user.email }}</small>
-                            <a class="btn btn-sm btn-outline-light" href="{{ url_for('admin_user_profile', user_id=user.id) }}">Профиль</a>
+                            <div class="d-flex gap-2">
+                                <a class="btn btn-sm btn-outline-light" href="{{ url_for('admin_user_profile', user_id=user.id) }}">Профиль</a>
+                                {% if user.id != current_user.id %}
+                                    <form method="post" action="{{ url_for('admin_delete_user', user_id=user.id) }}" onsubmit="return confirm('Удалить пользователя {{ user.username }}? Это действие необратимо.')">
+                                        <button class="btn btn-sm btn-outline-danger">Удалить</button>
+                                    </form>
+                                {% endif %}
+                            </div>
                         </div>
                         <form method="post" action="{{ url_for('admin_topup_user', user_id=user.id) }}" class="d-flex gap-2">
                             <input
@@ -64,6 +79,18 @@
                                 required
                             >
                             <button class="btn btn-sm btn-success">Пополнить</button>
+                        </form>
+                        <form method="post" action="{{ url_for('admin_withdraw_user', user_id=user.id) }}" class="d-flex gap-2 mt-2">
+                            <input
+                                type="number"
+                                min="1"
+                                step="0.01"
+                                name="amount"
+                                class="form-control form-control-sm"
+                                placeholder="Списать сумму (₽)"
+                                required
+                            >
+                            <button class="btn btn-sm btn-danger">Списать</button>
                         </form>
                     </li>
                 {% endfor %}

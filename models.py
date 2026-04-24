@@ -44,6 +44,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)  # Хэш пароля
     email = db.Column(db.String(120), unique=True, nullable=False)
+    avatar_url = db.Column(db.String(500), nullable=True)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     balance = db.Column(db.Float, default=0.0, nullable=False)
 

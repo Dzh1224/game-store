@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <h1 class="h4 mb-3">Добавление игры</h1>
-<form method="post" class="card p-3 bg-dark-subtle border-secondary">
+<form method="post" enctype="multipart/form-data" class="card p-3 bg-dark-subtle border-secondary">
     <div class="row g-3">
         <div class="col-md-6">
             <label class="form-label">Название</label>
@@ -25,7 +25,11 @@
         </div>
         <div class="col-md-4">
             <label class="form-label">URL картинки</label>
-            <input class="form-control" name="image_url" required>
+            <input class="form-control" name="image_url" placeholder="/static/images/games/my-game.jpg или https://...">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Загрузить файл</label>
+            <input class="form-control" type="file" name="image_file" accept=".png,.jpg,.jpeg,.webp,.gif">
         </div>
         <div class="col-12">
             <label class="form-label">Описание (100+ символов)</label>

@@ -26,24 +26,20 @@
                 {% endif %}
             </ul>
             <div class="d-flex gap-2">
-                <div class="dropdown">
-                    <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                        {{ t('theme') }}: {{ t(current_theme) }}
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="{{ url_for('set_theme', theme='light') }}">{{ t('light') }}</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('set_theme', theme='dark') }}">{{ t('dark') }}</a></li>
-                    </ul>
-                </div>
-                <div class="dropdown">
-                    <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                        {{ t('language') }}: {{ t('russian') if current_lang == 'ru' else t('english') }}
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="{{ url_for('set_language', lang='ru') }}">{{ t('russian') }}</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('set_language', lang='en') }}">{{ t('english') }}</a></li>
-                    </ul>
-                </div>
+                <a
+                    class="btn btn-outline-light btn-sm"
+                    href="{{ url_for('set_theme', theme='dark' if current_theme == 'light' else 'light') }}"
+                    title="{{ t('theme') }}"
+                >
+                    💡
+                </a>
+                <a
+                    class="btn btn-outline-light btn-sm"
+                    href="{{ url_for('set_language', lang='en' if current_lang == 'ru' else 'ru') }}"
+                    title="{{ t('language') }}"
+                >
+                    🌐 {{ current_lang|upper }}
+                </a>
                 {% if current_user.is_authenticated %}
                     <span class="badge text-bg-success align-self-center">{{ t('balance') }}: {{ '%.2f'|format(current_user.balance) }} ₽</span>
                     <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">{{ t('logout') }}</a>

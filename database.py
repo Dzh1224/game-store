@@ -1,6 +1,7 @@
 import random
 from urllib.parse import quote_plus
 
+from sqlalchemy import text
 from werkzeug.security import generate_password_hash
 
 from models import Game, User, db
@@ -61,6 +62,21 @@ def _get_popular_games_catalog():
         ("Firewatch", "Adventure", "Campo Santo", 2016),
         ("Life is Strange", "Adventure", "Dontnod Entertainment", 2015),
         ("Subnautica", "Adventure", "Unknown Worlds Entertainment", 2018),
+        ("Portal 2", "Adventure", "Valve", 2011),
+        ("Resident Evil 4", "Horror", "Capcom", 2023),
+        ("Silent Hill 2", "Horror", "Bloober Team", 2024),
+        ("Dead Space", "Horror", "Motive Studio", 2023),
+        ("Outlast", "Horror", "Red Barrels", 2013),
+        ("The Forest", "Horror", "Endnight Games", 2018),
+        ("EA Sports FC 25", "Sports", "EA Vancouver", 2024),
+        ("NBA 2K25", "Sports", "Visual Concepts", 2024),
+        ("F1 24", "Sports", "Codemasters", 2024),
+        ("Forza Horizon 5", "Sports", "Playground Games", 2021),
+        ("Gran Turismo 7", "Sports", "Polyphony Digital", 2022),
+        ("Microsoft Flight Simulator", "Simulator", "Asobo Studio", 2020),
+        ("Euro Truck Simulator 2", "Simulator", "SCS Software", 2012),
+        ("The Sims 4", "Simulator", "Maxis", 2014),
+        ("Cities: Skylines II", "Simulator", "Colossal Order", 2023),
     ]
 
 
@@ -111,9 +127,10 @@ def _seed_games():
 
 
 def _replace_catalog_if_needed():
-    # Если в базе старый синтетический каталог, заменяем на популярные реальные игры
-    has_real_catalog = Game.query.filter(Game.name.like("%(Standard Edition)%")).first() is not None
-    if has_real_catalog:
+    # Если каталог старый или в нем нет новых популярных игр, пересоздаем его
+    has_any_standard = Game.query.filter(Game.name.like("%(Standard Edition)%")).first() is not None
+    has_new_game = Game.query.filter(Game.name.like("Portal 2 (Standard Edition)")).first() is not None
+    if has_any_standard and has_new_game:
         return
 
     users = User.query.all()
@@ -134,12 +151,18 @@ def init_db(app):
     db.init_app(app)
     with app.app_context():
         db.create_all()
+        user_columns = db.session.execute(text("PRAGMA table_info(users)")).fetchall()
+        user_column_names = {column[1] for column in user_columns}
+        if "avatar_url" not in user_column_names:
+            db.session.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)"))
+            db.session.commit()
 
         if not User.query.filter_by(username="admin").first():
             admin = User(
                 username="admin",
                 email="admin@gamestore.local",
                 password=generate_password_hash("admin123456"),
+                avatar_url=None,
                 is_admin=True,
                 balance=50000.0,
             )

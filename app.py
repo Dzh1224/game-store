@@ -1,6 +1,9 @@
+import os
 import re
+import uuid
 from datetime import timedelta
 from functools import wraps
+from math import ceil
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from flask_login import (
@@ -11,6 +14,7 @@ from flask_login import (
     logout_user,
 )
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 
 from database import init_db
 from models import Game, User, db
@@ -21,6 +25,9 @@ app.config["SECRET_KEY"] = "hexlet-game-store-secret-key"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///game_store.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["REMEMBER_COOKIE_DURATION"] = timedelta(days=30)
+app.config["GAME_IMAGES_FOLDER"] = os.path.join(app.static_folder, "images", "games")
+app.config["USER_AVATARS_FOLDER"] = os.path.join(app.static_folder, "images", "avatars")
+app.config["ALLOWED_IMAGE_EXTENSIONS"] = {"png", "jpg", "jpeg", "webp", "gif"}
 
 init_db(app)
 
@@ -112,6 +119,100 @@ TRANSLATIONS = {
 }
 
 
+EDITION_PATTERN = re.compile(r"^(?P<base>.+?) \((?P<edition>[^()]+)\)$")
+EDITION_PRIORITY = {
+    "Standard Edition": 1,
+    "Deluxe Edition": 2,
+    "Ultimate Edition": 3,
+}
+
+
+def split_game_title(name):
+    match = EDITION_PATTERN.match(name)
+    if not match:
+        return name, ""
+    return match.group("base"), match.group("edition")
+
+
+def group_games_by_base(games):
+    grouped = {}
+    for game in games:
+        base_name, edition_name = split_game_title(game.name)
+        grouped.setdefault(base_name, []).append(
+            {
+                "game": game,
+                "edition": edition_name,
+            }
+        )
+
+    for base_name in grouped:
+        grouped[base_name].sort(
+            key=lambda item: (
+                EDITION_PRIORITY.get(item["edition"], 99),
+                item["game"].id,
+            )
+        )
+
+    return grouped
+
+
+def get_versions_for_base(base_name):
+    base_like = f"{base_name} (%Edition)"
+    versions = Game.query.filter(Game.name.like(base_like)).order_by(Game.id.asc()).all()
+    return versions
+
+
+def build_admin_game_cards(games):
+    grouped_games = group_games_by_base(games)
+    cards = []
+    for base_name, versions in grouped_games.items():
+        representative = versions[0]["game"]
+        prices = [item["game"].price for item in versions]
+        cards.append(
+            {
+                "game_id": representative.id,
+                "base_name": base_name,
+                "versions_count": len(versions),
+                "min_price": min(prices),
+                "max_price": max(prices),
+            }
+        )
+    cards.sort(key=lambda item: item["game_id"])
+    for index, card in enumerate(cards, start=1):
+        card["card_id"] = index
+    return cards
+
+
+def paginate_list(items, page, per_page):
+    total = len(items)
+    if total == 0:
+        return {
+            "items": [],
+            "page": 1,
+            "pages": 1,
+            "has_prev": False,
+            "has_next": False,
+            "prev_num": None,
+            "next_num": None,
+            "total": 0,
+        }
+
+    pages = max(1, ceil(total / per_page))
+    page = min(max(page, 1), pages)
+    start = (page - 1) * per_page
+    end = start + per_page
+    return {
+        "items": items[start:end],
+        "page": page,
+        "pages": pages,
+        "has_prev": page > 1,
+        "has_next": page < pages,
+        "prev_num": page - 1 if page > 1 else None,
+        "next_num": page + 1 if page < pages else None,
+        "total": total,
+    }
+
+
 @app.before_request
 def set_defaults():
     if session.get("theme") not in {"light", "dark"}:
@@ -157,6 +258,44 @@ def is_valid_email(email):
     return bool(re.match(pattern, email))
 
 
+def save_game_image(image_file):
+    if not image_file or not image_file.filename:
+        return None, None
+
+    original_name = secure_filename(image_file.filename)
+    if "." not in original_name:
+        return None, "Image must have file extension."
+
+    extension = original_name.rsplit(".", 1)[1].lower()
+    if extension not in app.config["ALLOWED_IMAGE_EXTENSIONS"]:
+        return None, "Allowed image formats: png, jpg, jpeg, webp, gif."
+
+    os.makedirs(app.config["GAME_IMAGES_FOLDER"], exist_ok=True)
+    stored_name = f"{uuid.uuid4().hex}.{extension}"
+    file_path = os.path.join(app.config["GAME_IMAGES_FOLDER"], stored_name)
+    image_file.save(file_path)
+    return f"/static/images/games/{stored_name}", None
+
+
+def save_user_avatar(image_file):
+    if not image_file or not image_file.filename:
+        return None, "Выберите файл аватарки."
+
+    original_name = secure_filename(image_file.filename)
+    if "." not in original_name:
+        return None, "Image must have file extension."
+
+    extension = original_name.rsplit(".", 1)[1].lower()
+    if extension not in app.config["ALLOWED_IMAGE_EXTENSIONS"]:
+        return None, "Allowed image formats: png, jpg, jpeg, webp, gif."
+
+    os.makedirs(app.config["USER_AVATARS_FOLDER"], exist_ok=True)
+    stored_name = f"{uuid.uuid4().hex}.{extension}"
+    file_path = os.path.join(app.config["USER_AVATARS_FOLDER"], stored_name)
+    image_file.save(file_path)
+    return f"/static/images/avatars/{stored_name}", None
+
+
 def admin_required(func):
     @wraps(func)
     @login_required
@@ -171,7 +310,6 @@ def admin_required(func):
 
 @app.route("/")
 def index():
-    page = request.args.get("page", 1, type=int)
     search = request.args.get("search", "", type=str).strip()
     category = request.args.get("category", "", type=str).strip()
     min_price = request.args.get("min_price", "", type=str).strip()
@@ -221,7 +359,28 @@ def index():
         sort = "id_asc"
     query = query.order_by(sort_options[sort])
 
-    games = query.paginate(page=page, per_page=20, error_out=False)
+    filtered_games = query.all()
+    grouped_games = group_games_by_base(filtered_games)
+
+    catalog_entries = []
+    for base_name, versions in grouped_games.items():
+        representative = versions[0]["game"]
+        min_price = min(version["game"].price for version in versions)
+        max_price = max(version["game"].price for version in versions)
+        catalog_entries.append(
+            {
+                "base_name": base_name,
+                "game": representative,
+                "versions_count": len(versions),
+                "min_price": min_price,
+                "max_price": max_price,
+            }
+        )
+
+    paginated = {
+        "items": catalog_entries,
+        "total": len(catalog_entries),
+    }
     categories = ["RPG", "Action", "Strategy", "Indie", "Adventure", "Simulator", "Sports", "Horror"]
     filters = {
         "search": search,
@@ -230,15 +389,42 @@ def index():
         "max_price": max_price,
         "sort": sort,
     }
-    return render_template("index.html", games=games, categories=categories, filters=filters)
+    return render_template("index.html", games=paginated, categories=categories, filters=filters)
 
 
 @app.route("/game/<int:game_id>")
 def game_detail(game_id):
-    game = Game.query.get_or_404(game_id)
+    requested_game = Game.query.get_or_404(game_id)
+    base_name, _ = split_game_title(requested_game.name)
+    base_like = f"{base_name} (%Edition)"
+    all_versions = Game.query.filter(Game.name.like(base_like)).order_by(Game.id.asc()).all()
+    if not all_versions:
+        all_versions = [requested_game]
+
+    grouped_versions = group_games_by_base(all_versions).get(base_name, [])
+    versions = [item["game"] for item in grouped_versions]
+
+    selected_version_id = request.args.get("edition_id", game_id, type=int)
+    game = next((version for version in versions if version.id == selected_version_id), versions[0])
+
     owned = current_user.is_authenticated and game in current_user.purchased_games
     in_cart = current_user.is_authenticated and game in current_user.cart_games
-    return render_template("game_detail.html", game=game, owned=owned, in_cart=in_cart)
+    editions = [
+        {
+            "id": version.id,
+            "label": split_game_title(version.name)[1] or version.name,
+            "price": version.price,
+        }
+        for version in versions
+    ]
+    return render_template(
+        "game_detail.html",
+        game=game,
+        owned=owned,
+        in_cart=in_cart,
+        base_name=base_name,
+        editions=editions,
+    )
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -265,6 +451,7 @@ def register():
             username=username,
             email=email,
             password=generate_password_hash(password),
+            avatar_url=None,
             is_admin=False,
             balance=0.0,
         )
@@ -307,7 +494,38 @@ def logout():
 @app.route("/profile")
 @login_required
 def profile():
-    return render_template("profile.html")
+    avatar_url = current_user.avatar_url or f"https://ui-avatars.com/api/?name={current_user.username}&background=6c757d&color=ffffff&size=200"
+    return render_template("profile.html", avatar_url=avatar_url)
+
+
+@app.route("/profile/avatar", methods=["POST"])
+@login_required
+def upload_avatar():
+    avatar_image_url, upload_error = save_user_avatar(request.files.get("avatar_file"))
+    if upload_error:
+        flash(upload_error, "danger")
+        return redirect(url_for("profile"))
+
+    current_user.avatar_url = avatar_image_url
+    db.session.commit()
+    flash("Аватарка обновлена.", "success")
+    return redirect(url_for("profile"))
+
+
+@app.route("/profile/delete", methods=["POST"])
+@login_required
+def delete_own_profile():
+    user_id = current_user.id
+    username = current_user.username
+    logout_user()
+
+    user = User.query.get(user_id)
+    if user:
+        db.session.delete(user)
+        db.session.commit()
+
+    flash(f"Профиль {username} удален.", "info")
+    return redirect(url_for("index"))
 
 
 @app.route("/topup", methods=["POST"])
@@ -448,8 +666,9 @@ def buy_game(game_id):
 @admin_required
 def admin():
     games = Game.query.order_by(Game.id.desc()).all()
+    game_cards = build_admin_game_cards(games)
     users = User.query.order_by(User.id.asc()).all()
-    return render_template("admin.html", games=games, users=users)
+    return render_template("admin.html", games=game_cards, users=users)
 
 
 @app.route("/admin/users/<int:user_id>")
@@ -482,6 +701,46 @@ def admin_topup_user(user_id):
     return redirect(request.referrer or url_for("admin"))
 
 
+@app.route("/admin/users/<int:user_id>/withdraw", methods=["POST"])
+@admin_required
+def admin_withdraw_user(user_id):
+    user = User.query.get_or_404(user_id)
+    amount = request.form.get("amount", "0").strip()
+    try:
+        amount_value = float(amount)
+    except ValueError:
+        flash("Некорректная сумма списания.", "danger")
+        return redirect(request.referrer or url_for("admin"))
+
+    if amount_value <= 0:
+        flash("Сумма должна быть больше 0.", "danger")
+        return redirect(request.referrer or url_for("admin"))
+
+    if user.balance < amount_value:
+        flash(f"Недостаточно средств на балансе пользователя {user.username}.", "danger")
+        return redirect(request.referrer or url_for("admin"))
+
+    user.balance -= amount_value
+    db.session.commit()
+    flash(f"С баланса пользователя {user.username} списано {amount_value:.2f} ₽.", "success")
+    return redirect(request.referrer or url_for("admin"))
+
+
+@app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
+@admin_required
+def admin_delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("Нельзя удалить текущего администратора из админки.", "danger")
+        return redirect(request.referrer or url_for("admin"))
+
+    username = user.username
+    db.session.delete(user)
+    db.session.commit()
+    flash(f"Пользователь {username} удален.", "info")
+    return redirect(request.referrer or url_for("admin"))
+
+
 @app.route("/admin/games/add", methods=["GET", "POST"])
 @admin_required
 def admin_add_game():
@@ -498,11 +757,21 @@ def admin_add_game():
             flash("Description must be at least 100 characters.", "danger")
             return redirect(url_for("admin_add_game"))
 
+        uploaded_image_url, upload_error = save_game_image(request.files.get("image_file"))
+        if upload_error:
+            flash(upload_error, "danger")
+            return redirect(url_for("admin_add_game"))
+
+        image_url = uploaded_image_url or request.form.get("image_url", "").strip()
+        if not image_url:
+            flash("Provide image URL or upload image file.", "danger")
+            return redirect(url_for("admin_add_game"))
+
         game = Game(
             name=request.form.get("name", "").strip(),
             price=price,
             description=description,
-            image_url=request.form.get("image_url", "").strip(),
+            image_url=image_url,
             category=request.form.get("category", "").strip(),
             developer=request.form.get("developer", "").strip(),
             release_year=release_year,
@@ -518,6 +787,11 @@ def admin_add_game():
 @admin_required
 def admin_edit_game(game_id):
     game = Game.query.get_or_404(game_id)
+    base_name, _ = split_game_title(game.name)
+    related_versions = get_versions_for_base(base_name)
+    if not related_versions:
+        related_versions = [game]
+
     if request.method == "POST":
         try:
             game.price = float(request.form.get("price", "0"))
@@ -531,9 +805,18 @@ def admin_edit_game(game_id):
             flash("Description must be at least 100 characters.", "danger")
             return redirect(url_for("admin_edit_game", game_id=game_id))
 
+        uploaded_image_url, upload_error = save_game_image(request.files.get("image_file"))
+        if upload_error:
+            flash(upload_error, "danger")
+            return redirect(url_for("admin_edit_game", game_id=game_id))
+
         game.name = request.form.get("name", "").strip()
         game.description = description
-        game.image_url = request.form.get("image_url", "").strip()
+        form_image_url = request.form.get("image_url", "").strip()
+        selected_image_url = uploaded_image_url or form_image_url
+        if selected_image_url:
+            for version_game in related_versions:
+                version_game.image_url = selected_image_url
         game.category = request.form.get("category", "").strip()
         game.developer = request.form.get("developer", "").strip()
 
@@ -541,7 +824,12 @@ def admin_edit_game(game_id):
         flash("Game updated.", "success")
         return redirect(url_for("admin"))
 
-    return render_template("admin_edit_game.html", game=game)
+    return render_template(
+        "admin_edit_game.html",
+        game=game,
+        base_name=base_name,
+        versions_count=len(related_versions),
+    )
 
 
 @app.route("/admin/games/delete/<int:game_id>", methods=["POST"])

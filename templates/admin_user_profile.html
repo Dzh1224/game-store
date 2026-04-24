@@ -9,6 +9,14 @@
     <div class="col-md-4">
         <div class="card p-3 bg-dark-subtle border-secondary h-100">
             <h2 class="h6">Данные аккаунта</h2>
+            <div class="text-center mb-3">
+                <img
+                    src="{{ user.avatar_url or ('https://ui-avatars.com/api/?name=' ~ user.username ~ '&background=6c757d&color=ffffff&size=200') }}"
+                    alt="Аватар {{ user.username }}"
+                    class="rounded-circle border border-secondary"
+                    style="width: 140px; height: 140px; object-fit: cover;"
+                >
+            </div>
             <p class="mb-1"><strong>ID:</strong> {{ user.id }}</p>
             <p class="mb-1"><strong>Логин:</strong> {{ user.username }}</p>
             <p class="mb-1"><strong>Email:</strong> {{ user.email }}</p>
