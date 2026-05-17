@@ -1,0 +1,104 @@
+pipeline {
+    agent any
+    
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'prod'], description: 'o')
+        booleanParam(name: 'RUN_MIGRATIONS', defaultValue: false, description: 'd')
+    }
+    
+    environment {
+        DOCKER_REGISTRY = 'docker.io/yourteam'
+        IMAGE_NAME = 'game-store-backend'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                dir('backend') {
+                    echo "code received"
+                }
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                dir('backend') {
+                    sh 'npm ci'
+                }
+            }
+        }
+        
+        stage('Lint') {
+            steps {
+                dir('backend') {
+                    sh 'npm run lint'
+                }
+            }
+        }
+        
+        stage('Unit Tests') {
+            steps {
+                dir('backend') {
+                    sh 'npm test'
+                }
+            }
+        }
+        
+        stage('Docker Build') {
+            steps {
+                dir('backend') {
+                    sh """
+                        docker build -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                                     -t ${IMAGE_NAME}:latest \
+                                     -f Dockerfile .
+                    """
+                }
+            }
+        }
+        
+        stage('Docker Push') {
+            when {
+                expression { params.ENVIRONMENT == 'staging' || params.ENVIRONMENT == 'prod' }
+            }
+            steps {
+                sh """
+                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                    docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                """
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                script {
+                    if (params.ENVIRONMENT == 'dev') {
+                        sh """
+                            docker stop backend-dev || true
+                            docker rm backend-dev || true
+                            docker run -d --name backend-dev -p 3000:3000 ${IMAGE_NAME}:${IMAGE_TAG}
+                        """
+                    } else if (params.ENVIRONMENT == 'staging') {
+                        sh """
+                            ssh staging-server "docker pull ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} && docker run -d --name backend-staging -p 3000:3000 ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+                        """
+                    } else if (params.ENVIRONMENT == 'prod') {
+                        sh """
+                            ssh prod-server "docker pull ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} && docker stop backend-prod || true && docker rm backend-prod || true && docker run -d --name backend-prod -p 3000:3000 ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+                        """
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "Pipeline t!"
+        }
+        failure {
+            echo "Pipeline f!"
+        }
+    }
+}
